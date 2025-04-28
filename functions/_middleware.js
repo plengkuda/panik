@@ -30,7 +30,7 @@ export async function onRequest(context) {
     } catch (error) {
       console.error('Error loading target.txt:', error);
       // If target.txt cannot be read, use fallback data
-      targetContent = 'rajacuan\gbo303\bwinbet365\kokitoto\boga88\juragan69\slot69\nagabola\qqslot\qqmybet';
+      targetContent = 'rajacuan/gbo303/bwinbet365/kokitoto/boga88/juragan69/slot69/nagabola/qqslot/qqmybet';
     }
     
     // Parse content from target.txt into array with correct URL format
