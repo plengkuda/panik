@@ -30,7 +30,7 @@ export async function onRequest(context) {
     } catch (error) {
       console.error('Error loading target.txt:', error);
       // If target.txt cannot be read, use fallback data
-      targetContent = 'kids 77\nkerasakti 777\nkingkong39\nkitty223\nusutoto\nstars88\nbtcplay\nkodokwin\nkubujp\nkudabet88';
+      targetContent = 'rajacuan\gbo303\bwinbet365\kokitoto\boga88\juragan69\slot69\nagabola\qqslot\qqmybet';
     }
     
     // Parse content from target.txt into array with correct URL format
@@ -74,7 +74,7 @@ export async function onRequest(context) {
       }
       
       // Create canonical URL
-      const canonicalOrigin = 'https://itkessu.ac.id/app/?jackpot='; // Replace with your actual domain
+      const canonicalOrigin = 'https://itkessu.ac.id/app/'; // Replace with your actual domain
       const canonicalUrl = `${canonicalOrigin}${urlFormattedSite}/`;
       
       // Generate AMP HTML with 3D cube design
