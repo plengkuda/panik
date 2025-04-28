@@ -1,29 +1,73 @@
-// Cloudflare Worker Advanced untuk AMP dengan Parameter Jackpot
-// File ini akan digunakan sebagai worker di Cloudflare untuk mengelola parameter /?jackpot=
+// Cloudflare Worker Lengkap untuk AMP dengan Parameter Jackpot
+// Dibuat untuk menangani parameter /?jackpot= dan mengubah konten AMP
 
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request))
 })
 
 /**
- * Mengurai template HTML AMP dan mengganti variabel $BRANDS dengan nilai parameter jackpot
- * @param {string} template - Template HTML dari target.txt
- * @param {string} brandValue - Nilai dari parameter jackpot
- * @returns {string} - HTML yang sudah diganti
+ * Memproses ekspresi PHP echo sederhana dalam HTML
+ * @param {string} html - Konten HTML dengan ekspresi PHP
+ * @param {object} variables - Objek berisi variabel untuk substitusi
+ * @returns {string} - HTML yang sudah diproses
  */
-function processTemplate(template, brandValue) {
-  // Ubah $BRANDS menjadi nilai parameter jackpot
-  const upperBrand = brandValue.toUpperCase()
-  const lowerBrand = brandValue.toLowerCase()
+function processPHPExpressions(html, variables) {
+  // Proses <?php echo strtolower($BRANDS); ?>
+  const lowerCaseRegex = /<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>/g;
+  html = html.replace(lowerCaseRegex, variables.BRANDS.toLowerCase());
   
-  // Ganti semua instance $BRANDS dengan nilai sesuai format (uppercase/lowercase)
-  let processed = template.replace(/\$BRANDS/g, upperBrand)
+  // Proses <?php echo $BRANDS; ?>
+  const echoRegex = /<\?php\s+echo\s+\$BRANDS;\s*\?>/g;
+  html = html.replace(echoRegex, variables.BRANDS);
   
-  // Ganti strtolower($BRANDS) dengan lowercase version
-  const lowerBrandRegex = /strtolower\(\$BRANDS\)/g
-  processed = processed.replace(lowerBrandRegex, lowerBrand)
+  // Proses class="<?php echo strtolower($BRANDS); ?>"
+  const classRegex = /class="<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>"/g;
+  html = html.replace(classRegex, `class="${variables.BRANDS.toLowerCase()}"`);
   
-  return processed
+  // Proses href="https://itkessu.ac.id/app/?jackpot=<?php echo strtolower($BRANDS); ?>"
+  const hrefRegex = /(href="https:\/\/itkessu\.ac\.id\/app\/\?jackpot=)<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>"/g;
+  html = html.replace(hrefRegex, `$1${variables.BRANDS.toLowerCase()}"`);
+  
+  // Proses title="<?php echo strtolower($BRANDS); ?>"
+  const titleRegex = /title="<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>"/g;
+  html = html.replace(titleRegex, `title="${variables.BRANDS.toLowerCase()}"`);
+  
+  // Proses alt="<?php echo strtolower($BRANDS); ?>"
+  const altRegex = /alt="<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>"/g;
+  html = html.replace(altRegex, `alt="${variables.BRANDS.toLowerCase()}"`);
+  
+  // Proses JSON dalam script type="application/ld+json"
+  const jsonRegex = /"name":\s*"<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>"/g;
+  html = html.replace(jsonRegex, `"name": "${variables.BRANDS.toLowerCase()}"`);
+  
+  const jsonUrlRegex = /"url":\s*"https:\/\/itkessu\.ac\.id\/app\/\?jackpot=<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>"/g;
+  html = html.replace(jsonUrlRegex, `"url": "https://itkessu.ac.id/app/?jackpot=${variables.BRANDS.toLowerCase()}"`);
+  
+  const jsonDescRegex = /"description":\s*"<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>\s*adalah/g;
+  html = html.replace(jsonDescRegex, `"description": "${variables.BRANDS.toLowerCase()} adalah`);
+  
+  const jsonAuthorRegex = /"name":\s*"<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>"\s*}/g;
+  html = html.replace(jsonAuthorRegex, `"name": "${variables.BRANDS.toLowerCase()}"}`);
+  
+  const jsonPublisherRegex = /"name":\s*"<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>",\s*"logo"/g;
+  html = html.replace(jsonPublisherRegex, `"name": "${variables.BRANDS.toLowerCase()}", "logo"`);
+  
+  return html;
+}
+
+/**
+ * Menyimpan informasi ke KV (opsional) untuk analitik
+ * @param {string} key - Kunci untuk menyimpan data
+ * @param {string} value - Nilai untuk disimpan
+ */
+async function logToKV(key, value) {
+  try {
+    // Uncomment jika menggunakan Cloudflare KV
+    // await ANALYTICS.put(key, value, {expirationTtl: 86400}) // 24 jam
+    console.log(`Logging to KV: ${key} = ${value}`)
+  } catch (error) {
+    console.error(`Error logging to KV: ${error.message}`)
+  }
 }
 
 /**
@@ -34,7 +78,7 @@ async function handleRequest(request) {
   const url = new URL(request.url)
   const jackpotParam = url.searchParams.get('jackpot')
   
-  // CORS headers untuk AMP
+  // Tentukan header CORS yang diperlukan untuk AMP
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -51,9 +95,9 @@ async function handleRequest(request) {
     })
   }
   
-  // Jika tidak ada parameter jackpot, kembalikan error
+  // Jika tidak ada parameter jackpot, redirect ke halaman default atau berikan pesan error
   if (!jackpotParam) {
-    return new Response('Parameter ?jackpot= diperlukan', {
+    return new Response('Parameter ?jackpot= diperlukan untuk mengakses halaman ini', {
       status: 400,
       headers: {
         'Content-Type': 'text/plain;charset=UTF-8',
@@ -62,27 +106,46 @@ async function handleRequest(request) {
     })
   }
 
+  // Log akses untuk analitik (opsional)
+  const timestamp = new Date().toISOString()
+  const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown'
+  const userAgent = request.headers.get('User-Agent') || 'unknown'
+  
+  await logToKV(`access:${timestamp}:${jackpotParam}`, JSON.stringify({
+    param: jackpotParam,
+    timestamp,
+    ip: clientIP,
+    ua: userAgent,
+    referer: request.headers.get('Referer') || 'direct'
+  }))
+
   try {
-    // Lokasi file target.txt - ganti dengan URL yang sebenarnya
-    // Untuk pengujian, Anda bisa menyimpan target.txt di Cloudflare KV atau sebagai variabel
+    // URL file target.txt
+    // PENTING: Ganti dengan URL yang sebenarnya dari file target.txt Anda
     const targetUrl = 'https://example.com/target.txt'
     
-    // Ambil konten template dari target.txt
-    // Untuk pengujian, kita bisa gunakan konten yang sudah diunggah
+    // Ambil konten template dari target.txt atau gunakan konten default
     let templateContent
     
-    // Coba mengambil dari URL target
     try {
-      const targetResponse = await fetch(targetUrl)
+      // Coba ambil dari URL target
+      const targetResponse = await fetch(targetUrl, {
+        cf: {
+          cacheTtl: 3600, // Cache 1 jam di Cloudflare
+          cacheEverything: true
+        }
+      })
+      
       if (!targetResponse.ok) {
         throw new Error(`Gagal mengambil target.txt: ${targetResponse.status}`)
       }
+      
       templateContent = await targetResponse.text()
     } catch (fetchError) {
-      // Fallback: Gunakan template dari file yang diunggah (sebagai contoh)
       console.error('Gagal mengambil target.txt:', fetchError)
       
-      // Gunakan template dari kode yang diunggah sebagai fallback
+      // Gunakan template default dari kode yang diunggah sebagai fallback
+      // Ini sama dengan isi paste.txt yang diberikan
       templateContent = `<!DOCTYPE html>
 <html amp lang="en-ID">
       <meta charset="utf-8"/>
@@ -182,17 +245,19 @@ async function handleRequest(request) {
 </html>`
     }
     
-    // Proses template dan ganti variabel PHP dengan nilai parameter jackpot
-    const processedContent = processTemplate(templateContent, jackpotParam)
+    // Proses template dan ganti semua variabel PHP dengan nilai parameter jackpot
+    const processedContent = processPHPExpressions(templateContent, {
+      BRANDS: jackpotParam
+    })
     
-    // Tentukan tipe konten dan headers
+    // Tentukan header untuk respons
     const contentTypeHeaders = {
       'Content-Type': 'text/html;charset=UTF-8',
-      'Cache-Control': 'public, max-age=300',
+      'Cache-Control': 'public, max-age=300', // 5 menit cache
       ...corsHeaders
     }
     
-    // Kembalikan halaman yang sudah diproses
+    // Kembalikan halaman AMP yang sudah diproses
     return new Response(processedContent, {
       status: 200,
       headers: contentTypeHeaders
@@ -200,7 +265,18 @@ async function handleRequest(request) {
     
   } catch (error) {
     console.error('Terjadi kesalahan:', error)
-    return new Response(`Terjadi kesalahan: ${error.message}`, {
+    
+    // Log error untuk debugging
+    await logToKV(`error:${new Date().toISOString()}`, 
+      JSON.stringify({
+        param: jackpotParam,
+        error: error.message,
+        stack: error.stack
+      })
+    )
+    
+    // Kembalikan respons error
+    return new Response(`Terjadi kesalahan dalam memproses permintaan. Silakan coba lagi nanti.`, {
       status: 500,
       headers: {
         'Content-Type': 'text/plain;charset=UTF-8',
