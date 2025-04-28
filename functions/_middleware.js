@@ -1,105 +1,105 @@
-// functions/_middleware.js - Modified for 3D cube AMP template
+// functions/_middleware.js - Middleware untuk aplikasi ITKessu
 
 export async function onRequest(context) {
   const { request, env, next } = context;
   const url = new URL(request.url);
   
-  // Check if request is from GoogleBot or AMP cache
+  // Periksa apakah permintaan berasal dari GoogleBot atau cache AMP
   const userAgent = request.headers.get('User-Agent') || '';
   const isFromGoogle = userAgent.includes('Googlebot') || userAgent.includes('Google-AMP');
   const isFromAMPCache = url.hostname.includes('cdn.ampproject.org') || 
                          url.hostname.includes('amp.cloudflare.com');
   
-  // If this is a request for target.txt, let it process normally
+  // Jika ini adalah permintaan untuk target.txt, biarkan diproses secara normal
   if (url.pathname.endsWith('/target.txt')) {
     return next();
   }
   
   try {
-    // Read target.txt file (assuming this file exists in assets or public folder)
+    // Baca file target.txt (dengan asumsi file ini ada di folder assets atau public)
     let targetContent;
     try {
-      // Use Cloudflare KV or file system to read target.txt
+      // Gunakan Cloudflare KV atau sistem file untuk membaca target.txt
       const targetResponse = await fetch(new URL('/target.txt', url.origin));
       
       if (!targetResponse.ok) {
-        throw new Error(`Failed to fetch target.txt: ${targetResponse.status}`);
+        throw new Error(`Gagal mengambil target.txt: ${targetResponse.status}`);
       }
       
       targetContent = await targetResponse.text();
     } catch (error) {
-      console.error('Error loading target.txt:', error);
-      // If target.txt cannot be read, use fallback data
-      targetContent = 'kids 77\nkerasakti 777\nkingkong39\nkitty223\nusutoto\nstars88\nbtcplay\nkodokwin\nkubujp\nkudabet88';
+      console.error('Error saat memuat target.txt:', error);
+      // Jika target.txt tidak dapat dibaca, gunakan data fallback
+      targetContent = 'itkessu\nsiakad\nperpustakaan\nkemahasiswaan\nriset\nkeuangan\nalumni\nppmb\nelearning\ncareer';
     }
     
-    // Parse content from target.txt into array with correct URL format
-    const sitesMap = new Map(); // To store originalName -> urlFormat pairs
+    // Parse konten dari target.txt ke dalam array dengan format URL yang benar
+    const sitesMap = new Map(); // Untuk menyimpan pasangan originalName -> urlFormat
     
-    // Array for display and processing
+    // Array untuk tampilan dan pemrosesan
     const sites = targetContent.split('\n')
       .map(line => line.trim())
       .filter(line => line.length > 0);
     
-    // Create map to look up site names and URL formats
+    // Buat map untuk mencari nama situs dan format URL
     sites.forEach(site => {
-      // URL Format: If site contains spaces, replace with hyphens
+      // Format URL: Jika situs berisi spasi, ganti dengan tanda hubung
       let urlFormat = site;
       if (site.includes(' ')) {
         urlFormat = site.replace(/\s+/g, '-');
       }
-      // Save to map for later reference
+      // Simpan ke map untuk referensi nanti
       sitesMap.set(urlFormat.toLowerCase(), site);
-      // Also save version without hyphens, without spaces
+      // Simpan juga versi tanpa tanda hubung, tanpa spasi
       sitesMap.set(site.toLowerCase().replace(/\s+/g, ''), site);
     });
     
-    // Find out which site is being accessed
+    // Cari tahu situs mana yang sedang diakses
     const pathSegments = url.pathname.split('/').filter(segment => segment);
     const currentSite = pathSegments.length > 0 ? pathSegments[0].toLowerCase() : '';
     
-    // Check if accessed site is in the map
+    // Periksa apakah situs yang diakses ada dalam map
     const originalSiteName = sitesMap.get(currentSite) || 
                              sitesMap.get(currentSite.replace(/-/g, '')) ||
                              sitesMap.get(currentSite.replace(/-/g, ' '));
     
     if (originalSiteName || pathSegments.length === 0) {
-      // Choose site based on path or use random if path is empty
+      // Pilih situs berdasarkan path atau gunakan random jika path kosong
       const siteToUse = originalSiteName || sites[Math.floor(Math.random() * sites.length)];
       
-      // Create correct URL format for canonical
+      // Buat format URL yang benar untuk canonical
       let urlFormattedSite = siteToUse;
       if (siteToUse.includes(' ')) {
         urlFormattedSite = siteToUse.replace(/\s+/g, '-');
       }
       
-      // Create canonical URL
-      const canonicalOrigin = 'https://itkessu.ac.id/app/?jackpot='; // Replace with your actual domain
+      // Buat URL kanonik
+      const canonicalOrigin = 'https://itkessu.ac.id/app/';
       const canonicalUrl = `${canonicalOrigin}${urlFormattedSite}/`;
       
-      // Generate AMP HTML with 3D cube design
-      const ampHtml = generate3DCubeAmpHtml(siteToUse, canonicalUrl);
+      // Generate AMP HTML dengan desain yang sesuai ITKessu
+      const ampHtml = generateITKessuAmpHtml(siteToUse, canonicalUrl);
       
-      // Add required AMP headers
+      // Tambahkan header AMP yang diperlukan
       const headers = new Headers();
       headers.set('Content-Type', 'text/html');
       headers.set('AMP-Cache-Transform', 'google;v="1..100"');
       
-      // If request is from GoogleBot, include Link header for canonical
+      // Jika permintaan berasal dari GoogleBot, sertakan header Link untuk kanonik
       if (isFromGoogle || isFromAMPCache) {
         headers.set('Link', `<${canonicalUrl}>; rel="canonical"`);
       }
       
-      // Enable much longer cache - 30 days (a month)
-      const ONE_MONTH_IN_SECONDS = 30 * 24 * 60 * 60; // 30 days in seconds
+      // Aktifkan cache yang lebih lama - 30 hari
+      const ONE_MONTH_IN_SECONDS = 30 * 24 * 60 * 60; // 30 hari dalam detik
       headers.set('Cache-Control', `public, max-age=${ONE_MONTH_IN_SECONDS}, s-maxage=${ONE_MONTH_IN_SECONDS}, immutable`);
       
-      // Additional headers to ensure caching across various systems
+      // Header tambahan untuk memastikan caching di berbagai sistem
       headers.set('Expires', new Date(Date.now() + ONE_MONTH_IN_SECONDS * 1000).toUTCString());
       headers.set('Surrogate-Control', `max-age=${ONE_MONTH_IN_SECONDS}`);
       headers.set('CDN-Cache-Control', `max-age=${ONE_MONTH_IN_SECONDS}`);
       
-      // Optional: Set ETag for efficient cache validation
+      // Opsional: Set ETag untuk validasi cache yang efisien
       const etag = `"${siteToUse}-${Date.now().toString(36)}"`;
       headers.set('ETag', etag);
       
@@ -108,46 +108,41 @@ export async function onRequest(context) {
       });
     }
     
-    // If site not found, continue to next handler
+    // Jika situs tidak ditemukan, lanjutkan ke handler berikutnya
     return next();
     
   } catch (error) {
-    console.error('Error in middleware:', error);
-    return new Response('Internal Server Error', { status: 500 });
+    console.error('Error dalam middleware:', error);
+    return new Response('Kesalahan Server Internal', { status: 500 });
   }
 }
 
-// Function to generate complete AMP HTML with 3D cube design
-function generate3DCubeAmpHtml(siteName, canonicalUrl) {
-  // Generate random jackpot value
-  const jackpotValue = generateRandomJackpot();
-  
-  // Generate varied descriptions and content
+// Fungsi untuk menghasilkan HTML AMP lengkap dengan desain yang sesuai ITKessu
+function generateITKessuAmpHtml(siteName, canonicalUrl) {
+  // Generate deskripsi bervariasi dan konten
   const descriptions = [
-    `${siteName.toUpperCase()} adalah situs slot online yang gacor dan sedang viral serta menyediakan deposit situs slot dana, slot shopeepay, dan slot pulsa rekomendasi HCAH.`,
-    `${siteName.toUpperCase()} merupakan portal terpercaya untuk semua jenis permainan slot online dengan jackpot terbesar dan peluang maxwin tertinggi.`,
-    `${siteName.toUpperCase()} situs slot online terpercaya dengan RTP tinggi dan pelayanan 24 jam nonstop untuk semua member baru maupun lama.`,
-    `Main dan rasakan sensasi kemenangan bersama ${siteName.toUpperCase()}, situs judi slot online terbaik dengan sistem fair play dan jackpot jutaan rupiah.`
+    `Aplikasi resmi Institut Teknologi dan Kesehatan Sumatera Utara (ITKessu) menyediakan layanan akademik, administrasi, dan pembelajaran terintegrasi bagi seluruh civitas akademika. ${siteName.toUpperCase()} adalah modul penting dalam sistem informasi kampus.`,
+    `Portal ${siteName.toUpperCase()} - bagian dari aplikasi ITKessu yang memberikan akses mudah untuk data kampus, jadwal perkuliahan, dan layanan administratif lainnya bagi mahasiswa dan dosen.`,
+    `${siteName.toUpperCase()} - Sistem terintegrasi Institut Teknologi dan Kesehatan Sumatera Utara yang menyediakan akses cepat ke layanan akademik, perpustakaan digital, dan manajemen kampus.`,
+    `Layanan ${siteName.toUpperCase()} ITKessu - platform digital yang mendukung kegiatan akademik dan administratif untuk meningkatkan kualitas pendidikan di Institut Teknologi dan Kesehatan Sumatera Utara.`
   ];
   
   const randomDesc = descriptions[Math.floor(Math.random() * descriptions.length)];
   
-  // Create array of login URLs to rotate through
-  const loginUrls = [
-    "https://slot603gacor.xyz/blackwidow"
-  ];
+  // URL untuk login resmi
+  const loginUrl = "https://itkessu.ac.id/login";
   
-  // Generate 6 images for cube faces
+  // Gambar untuk tampilan
   const imageSources = [
-    "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/slotdemo.webp",
-    "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/h2hmrj6zl8ocojfa3d78.webp",
-    "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/wezhdtvga0u3bifplimc.webp",
-    "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/tvl3xe4sozct26i4gzcc.webp",
-    "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409495/cfwbsx4hcpoyshpovyth.webp",
-    "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409495/r1j4iwins1pnf551a1xe.webp"
+    "https://res.cloudinary.com/itkessucloud/image/upload/v1/campus/building.webp",
+    "https://res.cloudinary.com/itkessucloud/image/upload/v1/campus/lab.webp",
+    "https://res.cloudinary.com/itkessucloud/image/upload/v1/campus/library.webp",
+    "https://res.cloudinary.com/itkessucloud/image/upload/v1/campus/logo.webp",
+    "https://res.cloudinary.com/itkessucloud/image/upload/v1/campus/students.webp",
+    "https://res.cloudinary.com/itkessucloud/image/upload/v1/campus/classroom.webp"
   ];
   
-  // Complete AMP HTML template with 3D cube design
+  // Template HTML AMP lengkap dengan desain yang sesuai
   return `<!DOCTYPE html>
 <html amp lang="id">
       <meta charset="utf-8"/>
@@ -155,13 +150,13 @@ function generate3DCubeAmpHtml(siteName, canonicalUrl) {
       <title>${siteName}: Portal Layanan Terpadu Institut Teknologi dan Kesehatan Sumatera Utara</title>
       <meta name="description" content="Aplikasi resmi Institut Teknologi dan Kesehatan Sumatera Utara (ITKessu) menyediakan layanan akademik, administrasi, dan pembelajaran terintegrasi bagi seluruh civitas akademika. Akses mudah untuk sistem informasi mahasiswa, jadwal kuliah, perpustakaan digital, dan layanan kampus dalam satu platform."/>
       <meta name="robots" content="index, follow"/>
-      <meta name="theme-color" content="#cbd000"/> 
+      <meta name="theme-color" content="#003366"/> 
       <link rel="canonical" href="${canonicalUrl}"/>
-      <link rel="icon" type="image/x-icon" media="(prefers-color-scheme: dark)" href="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/icon-slotgacor.webp"/>
+      <link rel="icon" type="image/x-icon" href="https://res.cloudinary.com/itkessucloud/image/upload/v1/campus/favicon.ico"/>
       <meta property="og:url" content="${canonicalUrl}"/>
-      <meta property="og:site_name" content="${siteName}"/>
-      <meta property="og:image:alt" content="${siteName}"/>
-      <meta property="og:image" content="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/h2hmrj6zl8ocojfa3d78.webp"/>
+      <meta property="og:site_name" content="ITKessu - ${siteName}"/>
+      <meta property="og:image:alt" content="ITKessu - ${siteName}"/>
+      <meta property="og:image" content="https://res.cloudinary.com/itkessucloud/image/upload/v1/campus/og-image.webp"/>
       <meta property="og:title" content="${siteName}: Portal Layanan Terpadu Institut Teknologi dan Kesehatan Sumatera Utara"/>
       <meta property="og:description" content="Aplikasi resmi Institut Teknologi dan Kesehatan Sumatera Utara (ITKessu) menyediakan layanan akademik, administrasi, dan pembelajaran terintegrasi bagi seluruh civitas akademika. Akses mudah untuk sistem informasi mahasiswa, jadwal kuliah, perpustakaan digital, dan layanan kampus dalam satu platform."/>
       <meta property="og:locale" content="ID_id"/>
@@ -169,126 +164,138 @@ function generate3DCubeAmpHtml(siteName, canonicalUrl) {
       <meta name="twitter:card" content="summary"/>
       <meta name="twitter:title" content="${siteName}: Portal Layanan Terpadu Institut Teknologi dan Kesehatan Sumatera Utara"/>
       <meta name="twitter:description" content="Aplikasi resmi Institut Teknologi dan Kesehatan Sumatera Utara (ITKessu) menyediakan layanan akademik, administrasi, dan pembelajaran terintegrasi bagi seluruh civitas akademika. Akses mudah untuk sistem informasi mahasiswa, jadwal kuliah, perpustakaan digital, dan layanan kampus dalam satu platform."/>
-      <meta name="twitter:image:src" content="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/h2hmrj6zl8ocojfa3d78.webp"/>
-      <link rel="shortcut icon" type="image/x-webp" href="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/icon-slotgacor.webp" />
+      <meta name="twitter:image:src" content="https://res.cloudinary.com/itkessucloud/image/upload/v1/campus/twitter-image.webp"/>
+      <link rel="shortcut icon" type="image/x-icon" href="https://res.cloudinary.com/itkessucloud/image/upload/v1/campus/favicon.ico" />
       <script type="application/ld+json">
          {
            "@context": "https://schema.org",
-           "@type": "Game",
-           "name": "${siteName}",
+           "@type": "WebApplication",
+           "name": "ITKessu - ${siteName}",
            "url": "${canonicalUrl}",
-           "image": "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/h2hmrj6zl8ocojfa3d78.webp",
+           "image": "https://res.cloudinary.com/itkessucloud/image/upload/v1/campus/og-image.webp",
            "description": "${randomDesc}",
+           "applicationCategory": "EducationalApplication",
+           "operatingSystem": "All",
+           "offers": {
+             "@type": "Offer",
+             "price": "0"
+           },
            "author": {
              "@type": "Organization",
-             "name": "${siteName}"
+             "name": "Institut Teknologi dan Kesehatan Sumatera Utara",
+             "url": "https://itkessu.ac.id"
            },
            "publisher": {
              "@type": "Organization",
-             "name": "${siteName}",
+             "name": "Institut Teknologi dan Kesehatan Sumatera Utara",
              "logo": {
                "@type": "ImageObject",
-               "url": "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/icon-slotgacor.webp"
+               "url": "https://res.cloudinary.com/itkessucloud/image/upload/v1/campus/logo.webp"
              }
-           },
-           "genre": "Game Online",
-           "operatingSystem": "All",
-           "applicationCategory": "Game",
-           "aggregateRating": {
-             "@type": "AggregateRating",
-             "ratingValue": "4.6",
-             "ratingCount": "215"
            }
          }
       </script>
-      <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"/>
-      <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet"/>
+      <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap"/>
+      <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet"/>
       <link rel="preload" as="script" href="https://cdn.ampproject.org/v0.js"/>
       <link rel="preload" as="image" href="${imageSources[0]}"/>
       <link rel="preload" as="image" href="${imageSources[1]}"/>
-      <link rel="preload" as="image" href="${imageSources[2]}"/>
-      <link rel="preload" as="image" href="${imageSources[3]}"/>
-      <link rel="preload" as="image" href="${imageSources[4]}"/>
-      <link rel="preload" as="image" href="${imageSources[5]}"/>
       <script async src="https://cdn.ampproject.org/v0.js"></script>
-      <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript><style amp-custom>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Orbitron,sans-serif;background:#99212d;color:#000;display:flex;justify-content:center;align-items:center;min-height:100vh;overflow:hidden;padding:20px;flex-direction:column}.container{width:100%;max-width:1024px;display:flex;flex-direction:column;align-items:center;position:relative;perspective:1000px;transform-style:preserve-3d}.cube{position:relative;width:300px;height:300px;transform-style:preserve-3d;transform:rotateX(30deg) rotateY(30deg);animation:spin 20s infinite linear;margin-top:20px}.cube div{position:absolute;width:100%;height:100%;background:#1f1f1f;border:2px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:20px;opacity:.9}.cube .front{transform:translateZ(150px)}.cube .back{transform:rotateY(180deg) translateZ(150px)}.cube .left{transform:rotateY(-90deg) translateZ(150px)}.cube .right{transform:rotateY(90deg) translateZ(150px)}.cube .top{transform:rotateX(90deg) translateZ(150px)}.cube .bottom{transform:rotateX(-90deg) translateZ(150px)}.cube amp-img{width:100%;height:100%;object-fit:cover}.static-logo{width:100px;height:100px;margin-bottom:-50px}@keyframes spin{from{transform:rotateX(30deg) rotateY(30deg)}to{transform:rotateX(30deg) rotateY(390deg)}}.cta{margin-top:40px;font-size:18px;color:#ff4081;text-align:center;animation:text-pulse 2s infinite}@keyframes text-pulse{0%,100%{opacity:1}50%{opacity:.5}}.cta a{display:inline-block;padding:12px 24px;margin:10px 5px;background:#000000;color:#99212d;text-decoration:none;border-radius:5px;transition:background .3s ease}.cta a:hover{background:#ff6363}@media (max-width:600px){.cube{width:200px;height:200px}.static-logo{width:240px;height:60px;margin-bottom:100px}.cta{font-size:16px;margin-top:80px}}.h1{margin-top:20px;font-size:medium;color:#000000}.footer{font-size:small;text-align:center}.copyright{color:#000000}
+      <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript><style amp-custom>
+      /* Reset dan style dasar */
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:Roboto, sans-serif;background:#f5f5f5;color:#333;display:flex;justify-content:center;align-items:center;min-height:100vh;overflow-x:hidden;padding:20px;flex-direction:column;}
       
-      /* Jackpot display */
-      .jackpot-container {
-        background: linear-gradient(45deg, #222222, #333333);
-        border-radius: 10px;
-        padding: 15px;
-        margin: 20px 0;
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-        text-align: center;
-        border: 1px solid rgba(255, 215, 0, 0.3);
-        color: #ffffff;
-        width: 80%;
-        max-width: 300px;
-      }
+      /* Container layout */
+      .container{width:100%;max-width:1024px;display:flex;flex-direction:column;align-items:center;position:relative;margin:0 auto;}
       
-      .jackpot-title {
-        font-size: 18px;
-        margin-bottom: 10px;
-      }
+      /* Header styling */
+      .header{width:100%;background:#003366;color:white;text-align:center;padding:20px;border-radius:8px 8px 0 0;margin-bottom:20px;}
+      .header h1{font-size:24px;margin-bottom:10px;}
+      .header p{font-size:16px;opacity:0.8;}
       
-      .jackpot-value {
-        font-size: 24px;
-        font-weight: 700;
-        color: #ffc107;
-        text-shadow: 0 0 10px rgba(255, 193, 7, 0.6);
-        letter-spacing: 1px;
+      /* Logo styling */
+      .logo-container{display:flex;justify-content:center;margin-bottom:20px;}
+      .logo{width:150px;height:auto;}
+      
+      /* Content sections */
+      .content-section{width:100%;background:white;border-radius:8px;padding:20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.1);}
+      .section-title{color:#003366;margin-bottom:15px;font-size:20px;border-bottom:2px solid #003366;padding-bottom:5px;}
+      .section-content{font-size:16px;line-height:1.6;}
+      
+      /* Feature grid */
+      .features{display:grid;grid-template-columns:repeat(auto-fill, minmax(250px, 1fr));gap:20px;margin-top:20px;}
+      .feature-card{background:#f9f9f9;border-radius:8px;padding:15px;text-align:center;transition:transform 0.3s ease;}
+      .feature-card:hover{transform:translateY(-5px);}
+      .feature-title{color:#003366;margin:10px 0;font-size:18px;}
+      .feature-desc{font-size:14px;color:#666;}
+      
+      /* CTA section */
+      .cta{width:100%;display:flex;justify-content:center;margin:20px 0;}
+      .cta-button{display:inline-block;background:#003366;color:white;text-decoration:none;padding:12px 24px;border-radius:5px;font-weight:500;transition:background 0.3s ease;margin:0 10px;}
+      .cta-button:hover{background:#002244;}
+      
+      /* Footer */
+      .footer{width:100%;text-align:center;margin-top:20px;padding:20px;font-size:14px;color:#666;}
+      
+      /* Responsive adjustments */
+      @media (max-width:768px){
+        .header h1{font-size:20px;}
+        .features{grid-template-columns:1fr;}
+        .cta{flex-direction:column;align-items:center;}
+        .cta-button{margin:10px 0;width:100%;text-align:center;}
       }
       </style>
    <body>
-      <amp-img class="static-logo" src="${imageSources[3]}" width="150" height="150" layout="intrinsic" alt="${siteName}"></amp-img>
       <div class="container">
-         <div class="cube">
-            <div class="front">
-               <amp-img src="${imageSources[0]}" width="400" height="400" layout="responsive" alt="${siteName}"></amp-img>
+        <div class="logo-container">
+          <amp-img class="logo" src="${imageSources[3]}" width="150" height="150" layout="intrinsic" alt="ITKessu Logo"></amp-img>
+        </div>
+        
+        <header class="header">
+          <h1>${siteName.toUpperCase()} - Institut Teknologi dan Kesehatan Sumatera Utara</h1>
+          <p>Portal Layanan Terpadu Kampus Digital</p>
+        </header>
+        
+        <section class="content-section">
+          <h2 class="section-title">Tentang ${siteName.toUpperCase()}</h2>
+          <div class="section-content">
+            <p>${randomDesc}</p>
+          </div>
+        </section>
+        
+        <section class="content-section">
+          <h2 class="section-title">Fitur Utama</h2>
+          <div class="features">
+            <div class="feature-card">
+              <amp-img src="${imageSources[0]}" width="80" height="80" layout="fixed" alt="Fitur 1"></amp-img>
+              <h3 class="feature-title">Akses Cepat</h3>
+              <p class="feature-desc">Dapatkan akses cepat ke semua layanan kampus dari satu portal terpadu</p>
             </div>
-            <div class="back">
-               <amp-img src="${imageSources[2]}" width="400" height="400" layout="responsive" alt="${siteName}"></amp-img>
+            <div class="feature-card">
+              <amp-img src="${imageSources[1]}" width="80" height="80" layout="fixed" alt="Fitur 2"></amp-img>
+              <h3 class="feature-title">Data Terintegrasi</h3>
+              <p class="feature-desc">Semua data akademik dan administratif terintegrasi dalam satu sistem</p>
             </div>
-            <div class="left">
-               <amp-img src="${imageSources[3]}" width="400" height="400" layout="responsive" alt="${siteName}"></amp-img>
+            <div class="feature-card">
+              <amp-img src="${imageSources[2]}" width="80" height="80" layout="fixed" alt="Fitur 3"></amp-img>
+              <h3 class="feature-title">Layanan Digital</h3>
+              <p class="feature-desc">Manfaatkan layanan digital untuk mempercepat proses akademik</p>
             </div>
-            <div class="right">
-               <amp-img src="${imageSources[1]}" width="400" height="400" layout="responsive" alt="${siteName}"></amp-img>
-            </div>
-            <div class="bottom">
-               <amp-img src="${imageSources[4]}" width="400" height="400" layout="responsive" alt="${siteName}"></amp-img>
-            </div>
-            <div class="top">
-               <amp-img src="${imageSources[5]}" width="400" height="400" layout="responsive" alt="${siteName}"></amp-img>
-            </div>
-         </div>
-         
-         <!-- Added jackpot display -->
-         <div class="jackpot-container">
-            <div class="jackpot-title">JACKPOT TERKINI:</div>
-            <div class="jackpot-value">${jackpotValue}</div>
-         </div>
-         
-         <div class="cta">
-            <h1 class="h1">${siteName}: Portal Layanan Terpadu Institut Teknologi dan Kesehatan Sumatera Utara</h1>
-            <a href="${loginUrls[0]}" target="_blank" rel="nofollow noreferrer noopener">LOGIN</a>
-            <a href="${loginUrls[0]}" target="_blank" rel="nofollow noreferrer noopener">DAFTAR</a>
-            <a href="${loginUrls[0]}" target="_blank" rel="nofollow noreferrer noopener">LIVE CHAT</a>
-         </div>
-         <br>
+          </div>
+        </section>
+        
+        <div class="cta">
+          <a href="${loginUrl}" class="cta-button" target="_blank">MASUK</a>
+          <a href="${loginUrl}" class="cta-button" target="_blank">DAFTAR</a>
+          <a href="https://itkessu.ac.id/bantuan" class="cta-button" target="_blank">BANTUAN</a>
+        </div>
       </div>
-      <footer class="footer">COPYRIGHT - <a class="${siteName}" href="${canonicalUrl}" title="${siteName}">${siteName}</a> OFFICIAL</footer>
+      
+      <footer class="footer">
+        <p>© 2025 Institut Teknologi dan Kesehatan Sumatera Utara - Semua Hak Dilindungi</p>
+        <p><a href="https://itkessu.ac.id" title="ITKessu">ITKessu.ac.id</a></p>
+      </footer>
    </body>
 </html>`;
-}
-
-// Function to generate random jackpot value
-function generateRandomJackpot() {
-  const billions = Math.floor(Math.random() * 10); // 0-9 billion
-  const millions = Math.floor(Math.random() * 1000); // 0-999 million
-  const thousands = Math.floor(Math.random() * 1000); // 0-999 thousand
-  const hundreds = Math.floor(Math.random() * 1000); // 0-999 hundred
-  
-  return `Rp ${billions},${millions.toString().padStart(3, '0')},${thousands.toString().padStart(3, '0')},${hundreds.toString().padStart(3, '0')}`;
 }
