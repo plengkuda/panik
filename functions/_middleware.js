@@ -74,7 +74,7 @@ export async function onRequest(context) {
       }
       
       // Create canonical URL
-      const canonicalOrigin = 'https://simpeg.stikesmuwsb.ac.id/?jackpot='; // Replace with your actual domain
+      const canonicalOrigin = 'https://simpeg.stikesmuwsb.ac.id/login/?jackpot='; // Replace with your actual domain
       const canonicalUrl = `${canonicalOrigin}${urlFormattedSite}`;
       
       // Generate AMP HTML with 3D cube design
