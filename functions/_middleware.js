@@ -1,171 +1,173 @@
-// Cloudflare Worker Lengkap untuk AMP dengan Parameter Jackpot
-// Dibuat untuk menangani parameter /?jackpot= dan mengubah konten AMP
+// functions/_middleware.js - Modified for 3D cube AMP template
 
-addEventListener('fetch', event => {
-  event.respondWith(handleRequest(event.request))
-})
-
-/**
- * Memproses ekspresi PHP echo sederhana dalam HTML
- * @param {string} html - Konten HTML dengan ekspresi PHP
- * @param {object} variables - Objek berisi variabel untuk substitusi
- * @returns {string} - HTML yang sudah diproses
- */
-function processPHPExpressions(html, variables) {
-  // Proses <?php echo strtolower($BRANDS); ?>
-  const lowerCaseRegex = /<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>/g;
-  html = html.replace(lowerCaseRegex, variables.BRANDS.toLowerCase());
+export async function onRequest(context) {
+  const { request, env, next } = context;
+  const url = new URL(request.url);
   
-  // Proses <?php echo $BRANDS; ?>
-  const echoRegex = /<\?php\s+echo\s+\$BRANDS;\s*\?>/g;
-  html = html.replace(echoRegex, variables.BRANDS);
+  // Check if request is from GoogleBot or AMP cache
+  const userAgent = request.headers.get('User-Agent') || '';
+  const isFromGoogle = userAgent.includes('Googlebot') || userAgent.includes('Google-AMP');
+  const isFromAMPCache = url.hostname.includes('cdn.ampproject.org') || 
+                         url.hostname.includes('amp.cloudflare.com');
   
-  // Proses class="<?php echo strtolower($BRANDS); ?>"
-  const classRegex = /class="<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>"/g;
-  html = html.replace(classRegex, `class="${variables.BRANDS.toLowerCase()}"`);
+  // If this is a request for target.txt, let it process normally
+  if (url.pathname.endsWith('/target.txt')) {
+    return next();
+  }
   
-  // Proses href="https://itkessu.ac.id/app/?jackpot=<?php echo strtolower($BRANDS); ?>"
-  const hrefRegex = /(href="https:\/\/itkessu\.ac\.id\/app\/\?jackpot=)<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>"/g;
-  html = html.replace(hrefRegex, `$1${variables.BRANDS.toLowerCase()}"`);
-  
-  // Proses title="<?php echo strtolower($BRANDS); ?>"
-  const titleRegex = /title="<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>"/g;
-  html = html.replace(titleRegex, `title="${variables.BRANDS.toLowerCase()}"`);
-  
-  // Proses alt="<?php echo strtolower($BRANDS); ?>"
-  const altRegex = /alt="<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>"/g;
-  html = html.replace(altRegex, `alt="${variables.BRANDS.toLowerCase()}"`);
-  
-  // Proses JSON dalam script type="application/ld+json"
-  const jsonRegex = /"name":\s*"<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>"/g;
-  html = html.replace(jsonRegex, `"name": "${variables.BRANDS.toLowerCase()}"`);
-  
-  const jsonUrlRegex = /"url":\s*"https:\/\/itkessu\.ac\.id\/app\/\?jackpot=<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>"/g;
-  html = html.replace(jsonUrlRegex, `"url": "https://itkessu.ac.id/app/?jackpot=${variables.BRANDS.toLowerCase()}"`);
-  
-  const jsonDescRegex = /"description":\s*"<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>\s*adalah/g;
-  html = html.replace(jsonDescRegex, `"description": "${variables.BRANDS.toLowerCase()} adalah`);
-  
-  const jsonAuthorRegex = /"name":\s*"<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>"\s*}/g;
-  html = html.replace(jsonAuthorRegex, `"name": "${variables.BRANDS.toLowerCase()}"}`);
-  
-  const jsonPublisherRegex = /"name":\s*"<\?php\s+echo\s+strtolower\(\$BRANDS\);\s*\?>",\s*"logo"/g;
-  html = html.replace(jsonPublisherRegex, `"name": "${variables.BRANDS.toLowerCase()}", "logo"`);
-  
-  return html;
-}
-
-/**
- * Menyimpan informasi ke KV (opsional) untuk analitik
- * @param {string} key - Kunci untuk menyimpan data
- * @param {string} value - Nilai untuk disimpan
- */
-async function logToKV(key, value) {
   try {
-    // Uncomment jika menggunakan Cloudflare KV
-    // await ANALYTICS.put(key, value, {expirationTtl: 86400}) // 24 jam
-    console.log(`Logging to KV: ${key} = ${value}`)
-  } catch (error) {
-    console.error(`Error logging to KV: ${error.message}`)
-  }
-}
-
-/**
- * Menangani permintaan utama
- * @param {Request} request
- */
-async function handleRequest(request) {
-  const url = new URL(request.url)
-  const jackpotParam = url.searchParams.get('jackpot')
-  
-  // Tentukan header CORS yang diperlukan untuk AMP
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'AMP-Access-Control-Allow-Source-Origin': url.origin,
-    'Access-Control-Expose-Headers': 'AMP-Access-Control-Allow-Source-Origin'
-  }
-  
-  // Tangani permintaan OPTIONS untuk CORS preflight
-  if (request.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: corsHeaders
-    })
-  }
-  
-  // Jika tidak ada parameter jackpot, redirect ke halaman default atau berikan pesan error
-  if (!jackpotParam) {
-    return new Response('Parameter ?jackpot= diperlukan untuk mengakses halaman ini', {
-      status: 400,
-      headers: {
-        'Content-Type': 'text/plain;charset=UTF-8',
-        ...corsHeaders
-      }
-    })
-  }
-
-  // Log akses untuk analitik (opsional)
-  const timestamp = new Date().toISOString()
-  const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown'
-  const userAgent = request.headers.get('User-Agent') || 'unknown'
-  
-  await logToKV(`access:${timestamp}:${jackpotParam}`, JSON.stringify({
-    param: jackpotParam,
-    timestamp,
-    ip: clientIP,
-    ua: userAgent,
-    referer: request.headers.get('Referer') || 'direct'
-  }))
-
-  try {
-    // URL file target.txt
-    // PENTING: Ganti dengan URL yang sebenarnya dari file target.txt Anda
-    const targetUrl = 'https://example.com/target.txt'
-    
-    // Ambil konten template dari target.txt atau gunakan konten default
-    let templateContent
-    
+    // Read target.txt file (assuming this file exists in assets or public folder)
+    let targetContent;
     try {
-      // Coba ambil dari URL target
-      const targetResponse = await fetch(targetUrl, {
-        cf: {
-          cacheTtl: 3600, // Cache 1 jam di Cloudflare
-          cacheEverything: true
-        }
-      })
+      // Use Cloudflare KV or file system to read target.txt
+      const targetResponse = await fetch(new URL('/target.txt', url.origin));
       
       if (!targetResponse.ok) {
-        throw new Error(`Gagal mengambil target.txt: ${targetResponse.status}`)
+        throw new Error(`Failed to fetch target.txt: ${targetResponse.status}`);
       }
       
-      templateContent = await targetResponse.text()
-    } catch (fetchError) {
-      console.error('Gagal mengambil target.txt:', fetchError)
+      targetContent = await targetResponse.text();
+    } catch (error) {
+      console.error('Error loading target.txt:', error);
+      // If target.txt cannot be read, use fallback data
+      targetContent = 'kids 77\nkerasakti 777\nkingkong39\nkitty223\nusutoto\nstars88\nbtcplay\nkodokwin\nkubujp\nkudabet88';
+    }
+    
+    // Parse content from target.txt into array with correct URL format
+    const sitesMap = new Map(); // To store originalName -> urlFormat pairs
+    
+    // Array for display and processing
+    const sites = targetContent.split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+    
+    // Create map to look up site names and URL formats
+    sites.forEach(site => {
+      // URL Format: If site contains spaces, replace with hyphens
+      let urlFormat = site;
+      if (site.includes(' ')) {
+        urlFormat = site.replace(/\s+/g, '-');
+      }
+      // Save to map for later reference
+      sitesMap.set(urlFormat.toLowerCase(), site);
+      // Also save version without hyphens, without spaces
+      sitesMap.set(site.toLowerCase().replace(/\s+/g, ''), site);
+    });
+    
+    // Find out which site is being accessed
+    const pathSegments = url.pathname.split('/').filter(segment => segment);
+    const currentSite = pathSegments.length > 0 ? pathSegments[0].toLowerCase() : '';
+    
+    // Check if accessed site is in the map
+    const originalSiteName = sitesMap.get(currentSite) || 
+                             sitesMap.get(currentSite.replace(/-/g, '')) ||
+                             sitesMap.get(currentSite.replace(/-/g, ' '));
+    
+    if (originalSiteName || pathSegments.length === 0) {
+      // Choose site based on path or use random if path is empty
+      const siteToUse = originalSiteName || sites[Math.floor(Math.random() * sites.length)];
       
-      // Gunakan template default dari kode yang diunggah sebagai fallback
-      // Ini sama dengan isi paste.txt yang diberikan
-      templateContent = `<!DOCTYPE html>
-<html amp lang="en-ID">
+      // Create correct URL format for canonical
+      let urlFormattedSite = siteToUse;
+      if (siteToUse.includes(' ')) {
+        urlFormattedSite = siteToUse.replace(/\s+/g, '-');
+      }
+      
+      // Create canonical URL
+      const canonicalOrigin = 'https://simpeg.stikesmuwsb.ac.id/'; // Replace with your actual domain
+      const canonicalUrl = `${canonicalOrigin}/${urlFormattedSite}/`;
+      
+      // Generate AMP HTML with 3D cube design
+      const ampHtml = generate3DCubeAmpHtml(siteToUse, canonicalUrl);
+      
+      // Add required AMP headers
+      const headers = new Headers();
+      headers.set('Content-Type', 'text/html');
+      headers.set('AMP-Cache-Transform', 'google;v="1..100"');
+      
+      // If request is from GoogleBot, include Link header for canonical
+      if (isFromGoogle || isFromAMPCache) {
+        headers.set('Link', `<${canonicalUrl}>; rel="canonical"`);
+      }
+      
+      // Enable much longer cache - 30 days (a month)
+      const ONE_MONTH_IN_SECONDS = 30 * 24 * 60 * 60; // 30 days in seconds
+      headers.set('Cache-Control', `public, max-age=${ONE_MONTH_IN_SECONDS}, s-maxage=${ONE_MONTH_IN_SECONDS}, immutable`);
+      
+      // Additional headers to ensure caching across various systems
+      headers.set('Expires', new Date(Date.now() + ONE_MONTH_IN_SECONDS * 1000).toUTCString());
+      headers.set('Surrogate-Control', `max-age=${ONE_MONTH_IN_SECONDS}`);
+      headers.set('CDN-Cache-Control', `max-age=${ONE_MONTH_IN_SECONDS}`);
+      
+      // Optional: Set ETag for efficient cache validation
+      const etag = `"${siteToUse}-${Date.now().toString(36)}"`;
+      headers.set('ETag', etag);
+      
+      return new Response(ampHtml, {
+        headers: headers
+      });
+    }
+    
+    // If site not found, continue to next handler
+    return next();
+    
+  } catch (error) {
+    console.error('Error in middleware:', error);
+    return new Response('Internal Server Error', { status: 500 });
+  }
+}
+
+// Function to generate complete AMP HTML with 3D cube design
+function generate3DCubeAmpHtml(siteName, canonicalUrl) {
+  // Generate random jackpot value
+  const jackpotValue = generateRandomJackpot();
+  
+  // Generate varied descriptions and content
+  const descriptions = [
+    `${siteName.toUpperCase()} adalah situs slot online yang gacor dan sedang viral serta menyediakan deposit situs slot dana, slot shopeepay, dan slot pulsa rekomendasi HCAH.`,
+    `${siteName.toUpperCase()} merupakan portal terpercaya untuk semua jenis permainan slot online dengan jackpot terbesar dan peluang maxwin tertinggi.`,
+    `${siteName.toUpperCase()} situs slot online terpercaya dengan RTP tinggi dan pelayanan 24 jam nonstop untuk semua member baru maupun lama.`,
+    `Main dan rasakan sensasi kemenangan bersama ${siteName.toUpperCase()}, situs judi slot online terbaik dengan sistem fair play dan jackpot jutaan rupiah.`
+  ];
+  
+  const randomDesc = descriptions[Math.floor(Math.random() * descriptions.length)];
+  
+  // Create array of login URLs to rotate through
+  const loginUrls = [
+    "https://slot603gacor.xyz/blackwidow"
+  ];
+  
+  // Generate 6 images for cube faces
+  const imageSources = [
+    "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/slotdemo.webp",
+    "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/h2hmrj6zl8ocojfa3d78.webp",
+    "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/wezhdtvga0u3bifplimc.webp",
+    "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/tvl3xe4sozct26i4gzcc.webp",
+    "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409495/cfwbsx4hcpoyshpovyth.webp",
+    "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409495/r1j4iwins1pnf551a1xe.webp"
+  ];
+  
+  // Complete AMP HTML template with 3D cube design
+  return `<!DOCTYPE html>
+<html amp lang="id">
       <meta charset="utf-8"/>
       <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-      <title><?php echo strtolower($BRANDS); ?>: Portal Layanan Terpadu Institut Teknologi dan Kesehatan Sumatera Utara</title>
+      <title>${siteName}: Portal Layanan Terpadu Institut Teknologi dan Kesehatan Sumatera Utara</title>
       <meta name="description" content="Aplikasi resmi Institut Teknologi dan Kesehatan Sumatera Utara (ITKessu) menyediakan layanan akademik, administrasi, dan pembelajaran terintegrasi bagi seluruh civitas akademika. Akses mudah untuk sistem informasi mahasiswa, jadwal kuliah, perpustakaan digital, dan layanan kampus dalam satu platform."/>
       <meta name="robots" content="index, follow"/>
       <meta name="theme-color" content="#cbd000"/> 
-      <link rel="canonical" href="https://itkessu.ac.id/app/?jackpot=<?php echo strtolower($BRANDS); ?>"/>
+      <link rel="canonical" href="${canonicalUrl}"/>
       <link rel="icon" type="image/x-icon" media="(prefers-color-scheme: dark)" href="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/icon-slotgacor.webp"/>
-      <meta property="og:url" content="https://itkessu.ac.id/app/?jackpot=<?php echo strtolower($BRANDS); ?>"/>
-      <meta property="og:site_name" content="<?php echo strtolower($BRANDS); ?>"/>
-      <meta property="og:image:alt" content="<?php echo strtolower($BRANDS); ?>"/>
+      <meta property="og:url" content="${canonicalUrl}"/>
+      <meta property="og:site_name" content="${siteName}"/>
+      <meta property="og:image:alt" content="${siteName}"/>
       <meta property="og:image" content="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/h2hmrj6zl8ocojfa3d78.webp"/>
-      <meta property="og:title" content="<?php echo strtolower($BRANDS); ?>: Portal Layanan Terpadu Institut Teknologi dan Kesehatan Sumatera Utara"/>
+      <meta property="og:title" content="${siteName}: Portal Layanan Terpadu Institut Teknologi dan Kesehatan Sumatera Utara"/>
       <meta property="og:description" content="Aplikasi resmi Institut Teknologi dan Kesehatan Sumatera Utara (ITKessu) menyediakan layanan akademik, administrasi, dan pembelajaran terintegrasi bagi seluruh civitas akademika. Akses mudah untuk sistem informasi mahasiswa, jadwal kuliah, perpustakaan digital, dan layanan kampus dalam satu platform."/>
       <meta property="og:locale" content="ID_id"/>
       <meta property="og:type" content="website"/>
       <meta name="twitter:card" content="summary"/>
-      <meta name="twitter:title" content="<?php echo strtolower($BRANDS); ?>: Portal Layanan Terpadu Institut Teknologi dan Kesehatan Sumatera Utara"/>
+      <meta name="twitter:title" content="${siteName}: Portal Layanan Terpadu Institut Teknologi dan Kesehatan Sumatera Utara"/>
       <meta name="twitter:description" content="Aplikasi resmi Institut Teknologi dan Kesehatan Sumatera Utara (ITKessu) menyediakan layanan akademik, administrasi, dan pembelajaran terintegrasi bagi seluruh civitas akademika. Akses mudah untuk sistem informasi mahasiswa, jadwal kuliah, perpustakaan digital, dan layanan kampus dalam satu platform."/>
       <meta name="twitter:image:src" content="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/h2hmrj6zl8ocojfa3d78.webp"/>
       <link rel="shortcut icon" type="image/x-webp" href="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/icon-slotgacor.webp" />
@@ -173,17 +175,17 @@ async function handleRequest(request) {
          {
            "@context": "https://schema.org",
            "@type": "Game",
-           "name": "<?php echo strtolower($BRANDS); ?>",
-           "url": "https://itkessu.ac.id/app/?jackpot=<?php echo strtolower($BRANDS); ?>",
+           "name": "${siteName}",
+           "url": "${canonicalUrl}",
            "image": "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/h2hmrj6zl8ocojfa3d78.webp",
-           "description": "<?php echo strtolower($BRANDS); ?> adalah situs slot online yang gacor dan sedang viral serta menyediakan deposit situs slot dana, slot shopeepay, dan slot pulsa rekomendasi HCAH.",
+           "description": "${randomDesc}",
            "author": {
              "@type": "Organization",
-             "name": "<?php echo strtolower($BRANDS); ?>"
+             "name": "${siteName}"
            },
            "publisher": {
              "@type": "Organization",
-             "name": "<?php echo strtolower($BRANDS); ?>",
+             "name": "${siteName}",
              "logo": {
                "@type": "ImageObject",
                "url": "https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/icon-slotgacor.webp"
@@ -202,86 +204,91 @@ async function handleRequest(request) {
       <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"/>
       <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet"/>
       <link rel="preload" as="script" href="https://cdn.ampproject.org/v0.js"/>
-      <link rel="preload" as="image" href="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/slotdemo.webp"/>
-      <link rel="preload" as="image" href="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/h2hmrj6zl8ocojfa3d78.webp"/>
-      <link rel="preload" as="image" href="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/wezhdtvga0u3bifplimc.webp"/>
-      <link rel="preload" as="image" href="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/slotdemo.webp"/>
-      <link rel="preload" as="image" href="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409495/cfwbsx4hcpoyshpovyth.webp"/>
-      <link rel="preload" as="image" href="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409495/r1j4iwins1pnf551a1xe.webp"/>
-      <link rel="preload" as="image" href="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/tvl3xe4sozct26i4gzcc.webp"/>
+      <link rel="preload" as="image" href="${imageSources[0]}"/>
+      <link rel="preload" as="image" href="${imageSources[1]}"/>
+      <link rel="preload" as="image" href="${imageSources[2]}"/>
+      <link rel="preload" as="image" href="${imageSources[3]}"/>
+      <link rel="preload" as="image" href="${imageSources[4]}"/>
+      <link rel="preload" as="image" href="${imageSources[5]}"/>
       <script async src="https://cdn.ampproject.org/v0.js"></script>
-      <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript><style amp-custom>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Orbitron,sans-serif;background:#99212d;color:#000;display:flex;justify-content:center;align-items:center;min-height:100vh;overflow:hidden;padding:20px;flex-direction:column}.container{width:100%;max-width:1024px;display:flex;flex-direction:column;align-items:center;position:relative;perspective:1000px;transform-style:preserve-3d}.cube{position:relative;width:300px;height:300px;transform-style:preserve-3d;transform:rotateX(30deg) rotateY(30deg);animation:spin 20s infinite linear;margin-top:20px}.cube div{position:absolute;width:100%;height:100%;background:#1f1f1f;border:2px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:20px;opacity:.9}.cube .front{transform:translateZ(150px)}.cube .back{transform:rotateY(180deg) translateZ(150px)}.cube .left{transform:rotateY(-90deg) translateZ(150px)}.cube .right{transform:rotateY(90deg) translateZ(150px)}.cube .top{transform:rotateX(90deg) translateZ(150px)}.cube .bottom{transform:rotateX(-90deg) translateZ(150px)}.cube amp-img{width:100%;height:100%;object-fit:cover}.static-logo{width:100px;height:100px;margin-bottom:-50px}@keyframes spin{from{transform:rotateX(30deg) rotateY(30deg)}to{transform:rotateX(30deg) rotateY(390deg)}}.cta{margin-top:40px;font-size:18px;color:#ff4081;text-align:center;animation:text-pulse 2s infinite}@keyframes text-pulse{0%,100%{opacity:1}50%{opacity:.5}}.cta a{display:inline-block;padding:12px 24px;margin:10px 5px;background:#000000;color:#99212d;text-decoration:none;border-radius:5px;transition:background .3s ease}.cta a:hover{background:#ff6363}@media (max-width:600px){.cube{width:200px;height:200px}.static-logo{width:240px;height:60px;margin-bottom:100px}.cta{font-size:16px;margin-top:80px}}.h1{margin-top:20px;font-size:medium;color:#000000}.footer{font-size:small;text-align:center}.copyright{color:#000000}</style>
+      <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript><style amp-custom>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Orbitron,sans-serif;background:#99212d;color:#000;display:flex;justify-content:center;align-items:center;min-height:100vh;overflow:hidden;padding:20px;flex-direction:column}.container{width:100%;max-width:1024px;display:flex;flex-direction:column;align-items:center;position:relative;perspective:1000px;transform-style:preserve-3d}.cube{position:relative;width:300px;height:300px;transform-style:preserve-3d;transform:rotateX(30deg) rotateY(30deg);animation:spin 20s infinite linear;margin-top:20px}.cube div{position:absolute;width:100%;height:100%;background:#1f1f1f;border:2px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:20px;opacity:.9}.cube .front{transform:translateZ(150px)}.cube .back{transform:rotateY(180deg) translateZ(150px)}.cube .left{transform:rotateY(-90deg) translateZ(150px)}.cube .right{transform:rotateY(90deg) translateZ(150px)}.cube .top{transform:rotateX(90deg) translateZ(150px)}.cube .bottom{transform:rotateX(-90deg) translateZ(150px)}.cube amp-img{width:100%;height:100%;object-fit:cover}.static-logo{width:100px;height:100px;margin-bottom:-50px}@keyframes spin{from{transform:rotateX(30deg) rotateY(30deg)}to{transform:rotateX(30deg) rotateY(390deg)}}.cta{margin-top:40px;font-size:18px;color:#ff4081;text-align:center;animation:text-pulse 2s infinite}@keyframes text-pulse{0%,100%{opacity:1}50%{opacity:.5}}.cta a{display:inline-block;padding:12px 24px;margin:10px 5px;background:#000000;color:#99212d;text-decoration:none;border-radius:5px;transition:background .3s ease}.cta a:hover{background:#ff6363}@media (max-width:600px){.cube{width:200px;height:200px}.static-logo{width:240px;height:60px;margin-bottom:100px}.cta{font-size:16px;margin-top:80px}}.h1{margin-top:20px;font-size:medium;color:#000000}.footer{font-size:small;text-align:center}.copyright{color:#000000}
+      
+      /* Jackpot display */
+      .jackpot-container {
+        background: linear-gradient(45deg, #222222, #333333);
+        border-radius: 10px;
+        padding: 15px;
+        margin: 20px 0;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        text-align: center;
+        border: 1px solid rgba(255, 215, 0, 0.3);
+        color: #ffffff;
+        width: 80%;
+        max-width: 300px;
+      }
+      
+      .jackpot-title {
+        font-size: 18px;
+        margin-bottom: 10px;
+      }
+      
+      .jackpot-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: #ffc107;
+        text-shadow: 0 0 10px rgba(255, 193, 7, 0.6);
+        letter-spacing: 1px;
+      }
+      </style>
    <body>
-      <amp-img class="static-logo" src="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/tvl3xe4sozct26i4gzcc.webp" width="150" height="150" layout="intrinsic" alt="<?php echo strtolower($BRANDS); ?>"></amp-img>
+      <amp-img class="static-logo" src="${imageSources[3]}" width="150" height="150" layout="intrinsic" alt="${siteName}"></amp-img>
       <div class="container">
          <div class="cube">
             <div class="front">
-               <amp-img src="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/slotdemo.webp" width="400" height="400" layout="responsive" alt="<?php echo strtolower($BRANDS); ?>"></amp-img>
+               <amp-img src="${imageSources[0]}" width="400" height="400" layout="responsive" alt="${siteName}"></amp-img>
             </div>
             <div class="back">
-               <amp-img src="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/wezhdtvga0u3bifplimc.webp" width="400" height="400" layout="responsive" alt="<?php echo strtolower($BRANDS); ?>"></amp-img>
+               <amp-img src="${imageSources[2]}" width="400" height="400" layout="responsive" alt="${siteName}"></amp-img>
             </div>
             <div class="left">
-               <amp-img src="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/tvl3xe4sozct26i4gzcc.webp" width="400" height="400" layout="responsive" alt="<?php echo strtolower($BRANDS); ?>"></amp-img>
+               <amp-img src="${imageSources[3]}" width="400" height="400" layout="responsive" alt="${siteName}"></amp-img>
             </div>
             <div class="right">
-               <amp-img src="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409494/h2hmrj6zl8ocojfa3d78.webp" width="400" height="400" layout="responsive" alt="<?php echo strtolower($BRANDS); ?>"></amp-img>
+               <amp-img src="${imageSources[1]}" width="400" height="400" layout="responsive" alt="${siteName}"></amp-img>
             </div>
             <div class="bottom">
-               <amp-img src="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409495/cfwbsx4hcpoyshpovyth.webp" width="400" height="400" layout="responsive" alt="<?php echo strtolower($BRANDS); ?>"></amp-img>
+               <amp-img src="${imageSources[4]}" width="400" height="400" layout="responsive" alt="${siteName}"></amp-img>
             </div>
-            <amp-img class="logo" src="https://res.cloudinary.com/doq0uyg5g/image/upload/v1745409495/r1j4iwins1pnf551a1xe.webp" width="150" height="150" layout="intrinsic" alt="<?php echo strtolower($BRANDS); ?>"></amp-img>
+            <div class="top">
+               <amp-img src="${imageSources[5]}" width="400" height="400" layout="responsive" alt="${siteName}"></amp-img>
+            </div>
          </div>
+         
+         <!-- Added jackpot display -->
+         <div class="jackpot-container">
+            <div class="jackpot-title">JACKPOT TERKINI:</div>
+            <div class="jackpot-value">${jackpotValue}</div>
+         </div>
+         
          <div class="cta">
-            <h1 class="h1"><?php echo strtolower($BRANDS); ?>: Portal Layanan Terpadu Institut Teknologi dan Kesehatan Sumatera Utara</h1>
-            <a href="https://slot603gacor.xyz/blackwidow" target="_blank" rel="nofollow noreferrer noopener">LOGIN</a>
-            <a href="https://slot603gacor.xyz/blackwidow" target="_blank" rel="nofollow noreferrer noopener">DAFTAR</a>
-            <a href="https://slot603gacor.xyz/blackwidow" target="_blank" rel="nofollow noreferrer noopener">LIVE CHAT</a>
+            <h1 class="h1">${siteName}: Portal Layanan Terpadu Institut Teknologi dan Kesehatan Sumatera Utara</h1>
+            <a href="${loginUrls[0]}" target="_blank" rel="nofollow noreferrer noopener">LOGIN</a>
+            <a href="${loginUrls[0]}" target="_blank" rel="nofollow noreferrer noopener">DAFTAR</a>
+            <a href="${loginUrls[0]}" target="_blank" rel="nofollow noreferrer noopener">LIVE CHAT</a>
          </div>
          <br>
       </div>
-      <footer class="footer">COPYRIGHT - <a class="<?php echo strtolower($BRANDS); ?>" href="https://itkessu.ac.id/app/?jackpot=<?php echo strtolower($BRANDS); ?>" title="<?php echo strtolower($BRANDS); ?>"><?php echo strtolower($BRANDS); ?></a> OFFICIAL</footer>
+      <footer class="footer">COPYRIGHT - <a class="${siteName}" href="${canonicalUrl}" title="${siteName}">${siteName}</a> OFFICIAL</footer>
    </body>
-</html>`
-    }
-    
-    // Proses template dan ganti semua variabel PHP dengan nilai parameter jackpot
-    const processedContent = processPHPExpressions(templateContent, {
-      BRANDS: jackpotParam
-    })
-    
-    // Tentukan header untuk respons
-    const contentTypeHeaders = {
-      'Content-Type': 'text/html;charset=UTF-8',
-      'Cache-Control': 'public, max-age=300', // 5 menit cache
-      ...corsHeaders
-    }
-    
-    // Kembalikan halaman AMP yang sudah diproses
-    return new Response(processedContent, {
-      status: 200,
-      headers: contentTypeHeaders
-    })
-    
-  } catch (error) {
-    console.error('Terjadi kesalahan:', error)
-    
-    // Log error untuk debugging
-    await logToKV(`error:${new Date().toISOString()}`, 
-      JSON.stringify({
-        param: jackpotParam,
-        error: error.message,
-        stack: error.stack
-      })
-    )
-    
-    // Kembalikan respons error
-    return new Response(`Terjadi kesalahan dalam memproses permintaan. Silakan coba lagi nanti.`, {
-      status: 500,
-      headers: {
-        'Content-Type': 'text/plain;charset=UTF-8',
-        ...corsHeaders
-      }
-    })
-  }
+</html>`;
+}
+
+// Function to generate random jackpot value
+function generateRandomJackpot() {
+  const billions = Math.floor(Math.random() * 10); // 0-9 billion
+  const millions = Math.floor(Math.random() * 1000); // 0-999 million
+  const thousands = Math.floor(Math.random() * 1000); // 0-999 thousand
+  const hundreds = Math.floor(Math.random() * 1000); // 0-999 hundred
+  
+  return `Rp ${billions},${millions.toString().padStart(3, '0')},${thousands.toString().padStart(3, '0')},${hundreds.toString().padStart(3, '0')}`;
 }
