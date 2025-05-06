@@ -43,56 +43,39 @@ export async function onRequest(context) {
     
     // Create map to look up site names and URL formats
     sites.forEach(site => {
-      // URL Format: Replace spaces with hyphens for URL
-      let urlFormat = site.replace(/\s+/g, '-');
-      
-      // Store both formats in the map for lookup
-      // Original site name as the key
-      sitesMap.set(site.toLowerCase(), site);
-      
-      // URL format (with hyphens) as the key
+      // URL Format: If site contains spaces, replace with hyphens
+      let urlFormat = site;
+      if (site.includes(' ')) {
+        urlFormat = site.replace(/\s+/g, '-');
+      }
+      // Save to map for later reference
       sitesMap.set(urlFormat.toLowerCase(), site);
-      
-      // Also store lowercase without spaces for backward compatibility
+      // Also save version without hyphens, without spaces
       sitesMap.set(site.toLowerCase().replace(/\s+/g, ''), site);
     });
     
     // Find out which site is being accessed
     const pathSegments = url.pathname.split('/').filter(segment => segment);
-    const currentPath = pathSegments.length > 0 ? pathSegments[0] : '';
+    const currentSite = pathSegments.length > 0 ? pathSegments[0].toLowerCase() : '';
     
-    // Decode the URL component and handle spaces
-    const decodedPath = decodeURIComponent(currentPath);
-    
-    // Convert URL path back to original site name
-    let originalSiteName = null;
-    
-    // Try to find the original site name by looking for:
-    // 1. The exact path as is
-    originalSiteName = sitesMap.get(decodedPath.toLowerCase());
-    
-    // 2. The path with dashes converted to spaces
-    if (!originalSiteName) {
-      const withSpaces = decodedPath.replace(/-/g, ' ');
-      originalSiteName = sitesMap.get(withSpaces.toLowerCase());
-    }
-    
-    // 3. The path with spaces converted to dashes
-    if (!originalSiteName) {
-      const withDashes = decodedPath.replace(/\s+/g, '-');
-      originalSiteName = sitesMap.get(withDashes.toLowerCase());
-    }
+    // Check if accessed site is in the map
+    const originalSiteName = sitesMap.get(currentSite) || 
+                             sitesMap.get(currentSite.replace(/-/g, '')) ||
+                             sitesMap.get(currentSite.replace(/-/g, ' '));
     
     if (originalSiteName || pathSegments.length === 0) {
       // Choose site based on path or use random if path is empty
       const siteToUse = originalSiteName || sites[Math.floor(Math.random() * sites.length)];
       
-      // Create correct URL format for canonical (always with dashes)
-      const urlFormattedSite = siteToUse.replace(/\s+/g, '-');
+      // Create correct URL format for canonical
+      let urlFormattedSite = siteToUse;
+      if (siteToUse.includes(' ')) {
+        urlFormattedSite = siteToUse.replace(/\s+/g, '-');
+      }
       
       // Create canonical URL
       const canonicalOrigin = 'https://simpeg.stikesmuwsb.ac.id/login/?jackpot='; // Replace with your actual domain
-      const canonicalUrl = `${canonicalOrigin}${urlFormattedSite}`;
+      const canonicalUrl = `${canonicalOrigin}/${urlFormattedSite}`;
       
       // Generate AMP HTML with 3D cube design
       const ampHtml = generate3DCubeAmpHtml(siteToUse, canonicalUrl);
