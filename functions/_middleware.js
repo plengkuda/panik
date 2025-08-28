@@ -74,7 +74,7 @@ export async function onRequest(context) {
       }
       
       // Create canonical URL
-      const canonicalOrigin = 'https://pa-barru.go.id/templates/badilweb/layouts/modules/layouts/K/'; // Replace with your actual domain
+      const canonicalOrigin = 'https://akpermedistra.ac.id/checklist/'; // Replace with your actual domain
       const canonicalUrl = `${canonicalOrigin}/${urlFormattedSite}`;
       
       // Generate AMP HTML with 3D cube design
