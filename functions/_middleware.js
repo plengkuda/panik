@@ -92,7 +92,7 @@ export async function onRequest(context) {
       const canonicalOrigin = 'https://akpermedistra.ac.id/checklist/?Oppai='; // Replace with your actual domain
       const canonicalUrl = `${url.origin}${url.pathname}`
       
-      console.log('Using static canonical URL:', canonicalUrl);
+      console.log('Generated canonical URL from request:', canonicalUrl);
       
       // Generate AMP HTML with self-contained design
       const ampHtml = generateAmpHtml(siteToUse, canonicalUrl, sites);
