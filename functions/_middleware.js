@@ -80,7 +80,7 @@ export async function onRequest(context) {
     
     if (originalSiteName || pathSegments.length === 0) {
       // Choose site based on path or use random if path is empty
-      const siteToUse = originalSiteName || sites[Math.floor(Math.random() * sites.length)];
+      const siteToUse = originalSiteName || sites[0];
       
       // Create correct URL format for canonical
       let urlFormattedSite = siteToUse;
