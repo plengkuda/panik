@@ -80,8 +80,9 @@ export async function onRequest(context) {
     
     if (originalSiteName || pathSegments.length === 0) {
       // Choose site based on path or use random if path is empty
-      const siteToUse = originalSiteName || sites[0];
-      
+      const siteToUse = sites[0]; // Selalu ambil situs pertama
+      console.log('Selected site from target.txt:', siteToUse);
+
       // Create correct URL format for canonical
       let urlFormattedSite = siteToUse;
       if (siteToUse.includes(' ')) {
@@ -90,9 +91,9 @@ export async function onRequest(context) {
       
       // Create canonical URL
       const canonicalOrigin = 'https://akpermedistra.ac.id/checklist/?Oppai='; // Replace with your actual domain
-      const canonicalUrl = `${url.origin}${url.pathname}`
+      const canonicalUrl = `${url.origin}${urlFormattedSite}`
       
-      console.log('Generated canonical URL from request:', canonicalUrl);
+      console.log('Generated canonical URL:', canonicalUrl);
       
       // Generate AMP HTML with self-contained design
       const ampHtml = generateAmpHtml(siteToUse, canonicalUrl, sites);
